@@ -1,0 +1,12 @@
+{
+  "front": {
+    "lockUuid": "abcdef012345",
+    "offlineKey": "ABCDEF0123456789ABCDEF0123456789",
+    "offlineKeyOffset": 1
+  },
+  "rear": {
+    "lockUuid": "abcdef456789",
+    "offlineKey": "ABCDEF0123456789ABCDEF0123456789",
+    "offlineKeyOffset": 1
+  }
+}

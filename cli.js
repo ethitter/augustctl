@@ -6,7 +6,14 @@ var augustctl = require('./index');
 
 var config = require(process.env.AUGUSTCTL_CONFIG || './config.json');
 
-var op = process.argv[2];
+var whichLock = process.argv[2];
+if ( config.hasOwnProperty(whichLock) ) {
+  config = config[whichLock];
+} else {
+  throw new Error('invalid lock specified:' + whichLock);
+}
+
+var op = process.argv[3];
 if (typeof augustctl.Lock.prototype[op] !== 'function') {
   throw new Error('invalid operation: ' + op);
 }
