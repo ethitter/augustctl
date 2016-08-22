@@ -6,18 +6,19 @@ var morgan = require('morgan');
 var await = require('asyncawait/await');
 var async = require('asyncawait/async');
 var config = require(process.env.AUGUSTCTL_CONFIG || './config.json');
+var serverConfig = require(process.env.AUGUSTCTL_SERVER_CONFIG || './server-config.json');
 
 var DEBUG = process.env.NODE_ENV !== 'production';
-var address = config.address || 'localhost';
-var port = config.port || 3000;
+var address = serverConfig.address || 'localhost';
+var port = serverConfig.port || 3000;
 
 var app = express();
 app.use(morgan(DEBUG ? 'dev' : 'combined'));
 
 var ret = {'status': -1, 'ret': '', 'msg': ''};
 
-app.get('/api/unlock', function(req, res) {
-  var lock = app.get('lock');
+app.get('/api/unlock/:lock_name', function(req, res) {
+  var lock = app.get('lock' + req.params.lock_name);
   if (!lock) {
     res.sendStatus(503);
     return;
@@ -39,7 +40,7 @@ var execStatus = async(function() {
 
      }
      else
-     {   
+     {
          ret['status'] = 1;
          ret['msg'] = 'Lock is already unlocked';
          res.json(ret);
@@ -56,13 +57,13 @@ var execStatus = async(function() {
 
    }).catch(function(e) {
       console.error(e.toString());
-   });  
+   });
 
 });
 
 
-app.get('/api/lock', function(req, res) {
-  var lock = app.get('lock');
+app.get('/api/lock/:lock_name', function(req, res) {
+  var lock = app.get('lock' + req.params.lock_name);
   if (!lock) {
     res.sendStatus(503);
     return;
@@ -83,7 +84,7 @@ app.get('/api/lock', function(req, res) {
 
      }
      else
-     {   
+     {
          ret['status'] = 1;
          ret['msg'] = 'Lock is already locked';
 
@@ -99,14 +100,13 @@ app.get('/api/lock', function(req, res) {
 
    }).finally(function(){
       console.log('Finally');
-   });  
+   });
 
 });
 
 
-app.get('/api/status', function(req, res){
-
-   var lock = app.get('lock');
+app.get('/api/status/:lock_name', function(req, res){
+   var lock = app.get('lock' + req.params.lock_name);
    if(!lock) {
       res.sendStatus(503);
       return;
@@ -128,7 +128,7 @@ app.get('/api/status', function(req, res){
 
    lock.connect().then(function() {
       var status = execStatus();
-  
+
    }).finally(function() {
       console.log('Finally');
    });
@@ -136,16 +136,16 @@ app.get('/api/status', function(req, res){
 
 });
 
-
-augustctl.scan(config.lockUuid).then(function(peripheral) {
-  var lock = new augustctl.Lock(
-    peripheral,
-    config.offlineKey,
-    config.offlineKeyOffset
-  );
-  app.set('lock', lock);
+config.forEach( function( lockConfig, lockName ) {
+    augustctl.scan(lockConfig.lockUuid).then(function (peripheral) {
+        var lock = new augustctl.Lock(
+            peripheral,
+            lockConfig.offlineKey,
+            lockConfig.offlineKeyOffset
+        );
+        app.set('lock' + lockName, lock);
+    });
 });
-
 var server = app.listen(port, address, function() {
   console.log('Listening at %j', server.address());
 });
