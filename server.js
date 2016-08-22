@@ -136,7 +136,9 @@ app.get('/api/status/:lock_name', function(req, res){
 
 });
 
-config.forEach( function( lockConfig, lockName ) {
+Object.keys(config).forEach( function( lockName ) {
+    var lockConfig = config[lockName];
+
     augustctl.scan(lockConfig.lockUuid).then(function (peripheral) {
         var lock = new augustctl.Lock(
             peripheral,
