@@ -55,9 +55,9 @@ var execStatus = async(function() {
 
         var exec = execStatus();
 
-   }).catch(function(e) {
-      console.error(e.toString());
-   });
+   }).finally(function(){
+      console.log('Finally');
+  });
 
 });
 
