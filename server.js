@@ -28,10 +28,22 @@ app.use( morgan( DEBUG ? 'dev' : 'combined' ) );
 
     // Default return arguments
 var ret = {
-    'status': -1,
-    'ret':    '',
-    'msg':    ''
-};
+        'status': -1,
+        'ret':    '',
+        'msg':    ''
+    };
+
+// Get lock instance
+function getLockInstance( lockName ) {
+    var lock = app.get( 'lock' + lockName );
+    if ( lock ) {
+        return lock;
+    } else {
+        clearCaches( req.params.lock_name );
+        res.sendStatus( 400 );
+        return false;
+    }
+}
 
 // Convert named status to integer representation
 function statusStringtoInt( status ) {
@@ -57,10 +69,8 @@ function clearCaches( lockName ) {
 
 // Reset lock connection
 function disconnectAndClear( lockName ) {
-    var lock = app.get( 'lock' + lockName );
+    var lock = getLockInstance( lockName );
     if ( ! lock ) {
-        clearCaches( lockName );
-        res.sendStatus( 400 );
         return;
     }
 
@@ -75,10 +85,8 @@ function disconnectAndClear( lockName ) {
 // Endpoint to check lock status
 app.get( '/api/status/:lock_name', cache( '15 seconds' ), function( req, res ) {
     // Parse allowed request arguments
-    var lock = app.get( 'lock' + req.params.lock_name );
+    var lock = getLockInstance( req.params.lock_name );
     if ( ! lock ) {
-        clearCaches( req.params.lock_name );
-        res.sendStatus( 400 );
         return;
     }
 
@@ -113,10 +121,8 @@ app.get( '/api/:lock_action(lock|unlock)/:lock_name', cache( '5 seconds' ), func
     }
 
     var lockName = req.params.lock_name,
-        lock = app.get( 'lock' + lockName );
+        lock = getLockInstance( lockName );
     if ( ! lock ) {
-        clearCaches( lockName );
-        res.sendStatus( 400 );
         return;
     }
 
@@ -157,10 +163,8 @@ app.get( '/api/:lock_action(lock|unlock)/:lock_name', cache( '5 seconds' ), func
 // Endpoint to disconnect a lock's BLE connections
 app.get( '/api/disconnect/:lock_name', function( req, res ) {
     // Parse allowed request arguments
-    var lock = app.get( 'lock' + req.params.lock_name );
+    var lock = getLockInstance( req.params.lock_name );
     if ( ! lock ) {
-        clearCaches( req.params.lock_name );
-        res.sendStatus( 400 );
         return;
     }
 
