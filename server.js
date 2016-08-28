@@ -19,8 +19,8 @@ app.use( morgan( DEBUG ? 'dev' : 'combined' ) );
 // Default return arguments
 var ret = {
     'status': -1,
-    'ret': '',
-    'msg': ''
+    'ret':    '',
+    'msg':    ''
 };
 
 // Endpoint to perform all lock actions
