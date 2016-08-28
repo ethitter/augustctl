@@ -26,7 +26,7 @@ app.use( morgan( DEBUG ? 'dev' : 'combined' ) );
  * UTILITIES
  */
 
-// Default return arguments
+    // Default return arguments
 var ret = {
     'status': -1,
     'ret':    '',
@@ -47,12 +47,18 @@ function statusStringtoInt( status ) {
 }
 
 // Clear cached routes
-function clear_caches( lockName ) {
+function clearCaches( lockName ) {
     apicache.clear( '/api/status/' + lockName );
     apicache.clear( '/api/lock/' + lockName );
     apicache.clear( '/api/unlock/' + lockName );
 
     return true;
+}
+
+// Reset lock connection
+function disconnectAndClear( lockName ) {
+    lock.disconnect();
+    clearCaches( lockName );
 }
 
 /**
@@ -64,7 +70,7 @@ app.get( '/api/status/:lock_name', cache( '15 seconds' ), function( req, res ) {
     // Parse allowed request arguments
     var lock = app.get( 'lock' + req.params.lock_name );
     if ( ! lock ) {
-        clear_caches( req.params.lock_name );
+        clearCaches( req.params.lock_name );
         res.sendStatus( 400 );
         return;
     }
@@ -84,8 +90,7 @@ app.get( '/api/status/:lock_name', cache( '15 seconds' ), function( req, res ) {
     // Perform requested action
     lock.connect().then( actionFunction ).catch( function( err ) {
         console.error( err );
-        lock.disconnect();
-        clear_caches( req.params.lock_name );
+        disconnectAndClear( req.params.lock_name );
         res.sendStatus( 500 );
     } );
 } );
@@ -103,7 +108,7 @@ app.get( '/api/:lock_action(lock|unlock)/:lock_name', cache( '5 seconds' ), func
     var lockName = req.params.lock_name,
         lock = app.get( 'lock' + lockName );
     if ( ! lock ) {
-        clear_caches( lockName );
+        clearCaches( lockName );
         res.sendStatus( 400 );
         return;
     }
@@ -130,16 +135,14 @@ app.get( '/api/:lock_action(lock|unlock)/:lock_name', cache( '5 seconds' ), func
             ret.msg    = "No change made. Lock was already '" + status + "'.";
         }
 
-        lock.disconnect();
-        clear_caches( lockName );
+        disconnectAndClear( lockName );
         res.json( ret );
     } );
 
     // Perform requested action
     lock.connect().then( actionFunction ).catch( function( err ) {
         console.error( err );
-        lock.disconnect();
-        clear_caches( lockName );
+        disconnectAndClear( lockName );
         res.sendStatus( 500 );
     } );
 } );
@@ -149,13 +152,12 @@ app.get( '/api/disconnect/:lock_name', function( req, res ) {
     // Parse allowed request arguments
     var lock = app.get( 'lock' + req.params.lock_name );
     if ( ! lock ) {
-        clear_caches( req.params.lock_name );
+        clearCaches( req.params.lock_name );
         res.sendStatus( 400 );
         return;
     }
 
-    lock.disconnect();
-    clear_caches( req.params.lock_name );
+    disconnectAndClear( req.params.lock_name );
     res.sendStatus( 204 );
 } );
 
