@@ -1,5 +1,9 @@
 'use strict';
 
+/**
+ * LIBRARIES
+ */
+
 var augustctl = require( './index' );
 var express   = require( 'express' );
 var morgan    = require( 'morgan' );
@@ -18,12 +22,42 @@ var port    = serverConfig.port || 3000;
 var app = express();
 app.use( morgan( DEBUG ? 'dev' : 'combined' ) );
 
+/**
+ * UTILITIES
+ */
+
 // Default return arguments
 var ret = {
     'status': -1,
     'ret':    '',
     'msg':    ''
 };
+
+// Convert named status to integer representation
+function statusStringtoInt( status ) {
+    var statusInt = -1;
+
+    if ( 'locked' === status ) {
+        statusInt = 0;
+    } else if ( 'unlocked' === status ) {
+        statusInt = 1;
+    }
+
+    return statusInt;
+}
+
+// Clear cached routes
+function clear_caches( lockName ) {
+    apicache.clear( '/api/status/' + lockName );
+    apicache.clear( '/api/lock/' + lockName );
+    apicache.clear( '/api/unlock/' + lockName );
+
+    return true;
+}
+
+/**
+ * ROUTES
+ */
 
 // Endpoint to check lock status
 app.get( '/api/status/:lock_name', cache( '15 seconds' ), function( req, res ) {
@@ -125,27 +159,9 @@ app.get( '/api/disconnect/:lock_name', function( req, res ) {
     res.sendStatus( 204 );
 } );
 
-// Convert named status to integer representation
-function statusStringtoInt( status ) {
-    var statusInt = -1;
-
-    if ( 'locked' === status ) {
-        statusInt = 0;
-    } else if ( 'unlocked' === status ) {
-        statusInt = 1;
-    }
-
-    return statusInt;
-}
-
-// Clear cached routes
-function clear_caches( lockName ) {
-    apicache.clear( '/api/status/' + lockName );
-    apicache.clear( '/api/lock/' + lockName );
-    apicache.clear( '/api/unlock/' + lockName );
-
-    return true;
-}
+/**
+ * SERVER SETUP
+ */
 
 // Parse lock configurations
 Object.keys( config ).forEach( function( lockName ) {
