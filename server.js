@@ -57,6 +57,13 @@ function clearCaches( lockName ) {
 
 // Reset lock connection
 function disconnectAndClear( lockName ) {
+    var lock = app.get( 'lock' + lockName );
+    if ( ! lock ) {
+        clearCaches( lockName );
+        res.sendStatus( 400 );
+        return;
+    }
+
     lock.disconnect();
     clearCaches( lockName );
 }
