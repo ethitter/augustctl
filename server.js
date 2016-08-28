@@ -110,6 +110,21 @@ app.get( '/api/:lock_action(lock|unlock)/:lock_name', cache( '5 seconds' ), func
     } );
 } );
 
+// Endpoint to disconnect a lock's BLE connections
+app.get( '/api/disconnect/:lock_name', function( req, res ) {
+    // Parse allowed request arguments
+    var lock = app.get( 'lock' + req.params.lock_name );
+    if ( ! lock ) {
+        clear_caches( req.params.lock_name );
+        res.sendStatus( 400 );
+        return;
+    }
+
+    lock.disconnect();
+    clear_caches( req.params.lock_name );
+    res.sendStatus( 204 );
+} );
+
 // Convert named status to integer representation
 function statusStringtoInt( status ) {
     var statusInt = -1;
