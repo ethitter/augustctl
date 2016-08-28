@@ -5,6 +5,8 @@ var express   = require( 'express' );
 var morgan    = require( 'morgan' );
 var await     = require( 'asyncawait/await' );
 var async     = require( 'asyncawait/async' );
+var apicache  = require( 'apicache' ).options( { defaultDuration: 30000 } );
+var cache     = apicache.middleware;
 
 var config       = require( process.env.AUGUSTCTL_CONFIG || './config.json' );
 var serverConfig = require( process.env.AUGUSTCTL_SERVER_CONFIG || './server-config.json' );
@@ -24,7 +26,7 @@ var ret = {
 };
 
 // Endpoint to perform all lock actions
-app.get( '/api/:lock_action/:lock_name', function( req, res ) {
+app.get( '/api/:lock_action/:lock_name', cache( '5 seconds' ), function( req, res ) {
     // Parse allowed request arguments
     var action = req.params.lock_action,
         allowedActions = [ 'unlock', 'lock', 'status' ];
