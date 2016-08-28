@@ -39,7 +39,7 @@ function getLockInstance( lockName ) {
     if ( lock ) {
         return lock;
     } else {
-        clearCaches( req.params.lock_name );
+        clearCaches( lockName );
         res.sendStatus( 400 );
         return false;
     }
