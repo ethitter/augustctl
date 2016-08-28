@@ -1,153 +1,124 @@
 'use strict';
 
-var augustctl = require('./index');
-var express = require('express');
-var morgan = require('morgan');
-var await = require('asyncawait/await');
-var async = require('asyncawait/async');
-var config = require(process.env.AUGUSTCTL_CONFIG || './config.json');
-var serverConfig = require(process.env.AUGUSTCTL_SERVER_CONFIG || './server-config.json');
+var augustctl = require( './index' );
+var express   = require( 'express' );
+var morgan    = require( 'morgan' );
+var await     = require( 'asyncawait/await' );
+var async     = require( 'asyncawait/async' );
 
-var DEBUG = process.env.NODE_ENV !== 'production';
+var config       = require( process.env.AUGUSTCTL_CONFIG || './config.json' );
+var serverConfig = require( process.env.AUGUSTCTL_SERVER_CONFIG || './server-config.json' );
+
+var DEBUG   = process.env.NODE_ENV !== 'production';
 var address = serverConfig.address || 'localhost';
-var port = serverConfig.port || 3000;
+var port    = serverConfig.port || 3000;
 
 var app = express();
-app.use(morgan(DEBUG ? 'dev' : 'combined'));
+app.use( morgan( DEBUG ? 'dev' : 'combined' ) );
 
-var ret = {'status': -1, 'ret': '', 'msg': ''};
+// Default return arguments
+var ret = {
+    'status': -1,
+    'ret': '',
+    'msg': ''
+};
 
-app.get('/api/unlock/:lock_name', function(req, res) {
-  var lock = app.get('lock' + req.params.lock_name);
-  if (!lock) {
-    res.sendStatus(503);
-    return;
-  }
+// Endpoint to perform all lock actions
+app.get( '/api/:lock_action/:lock_name', function( req, res ) {
+    // Parse allowed request arguments
+    var action = req.params.lock_action,
+        allowedActions = [ 'unlock', 'lock', 'status' ];
+    if ( -1 === allowedActions.indexOf( action ) ) {
+        res.sendStatus( 400 );
+        return;
+    }
 
+    var lock = app.get( 'lock' + req.params.lock_name );
+    if ( ! lock ) {
+        res.sendStatus( 400 );
+        return;
+    }
 
-var execStatus = async(function() {
+    // Suspendable functions to interact with lock based on requested action
+    if ( 'status' === action ) {
+        // Checks lock's state and returns it
+        var actionFunction = async( function() {
+            var status    = await( lock.status() ),
+                statusInt = -1;
 
-     var status = await(lock.status());
+            if ( 'locked' === status ) {
+                statusInt = 0;
+            } else if ( 'unlocked' === status ) {
+                statusInt = 1;
+            }
 
-     if(status == 'locked')
-     {
+            ret.ret    = status;
+            ret.status = statusInt;
+            ret.msg    = "Status checked successfully.";
 
-          var cmd = await(lock.forceUnlock());
-          ret['msg'] = 'Command completed. Disconnected.';
-          ret['status'] = 0;
-          ret['ret'] = 'unlocked';
-          console.log('Released unlock request');
+            lock.disconnect();
+            res.json( ret );
+        } );
+    } else {
+        // Locks or unlocks a requested lock, if not already in that state
+        var actionFunction = async( function() {
+            var status = await( lock.status() );
 
-     }
-     else
-     {
-         ret['status'] = 1;
-         ret['msg'] = 'Lock is already unlocked';
-         res.json(ret);
+            if ( 'lock' === action && 'unlocked' === status ) {
+                var cmd = await( lock.forceLock() );
 
-     }
+                ret.ret    = 'locked';
+                ret.status = 0;
+                ret.msg    = 'Locked as requested.';
+            } else if ( 'unlock' === action && 'locked' === status ) {
+                var cmd = await( lock.forceUnlock() );
 
-    lock.disconnect();
-    res.json(ret);
-});
+                ret.ret    = 'unlocked';
+                ret.status = 1;
+                ret.msg    = 'Unlocked as requested.';
+            } else {
+                var statusInt = -1;
 
-  lock.connect().then(function(){
+                if ( 'locked' === status ) {
+                    statusInt = 0;
+                } else if ( 'unlocked' === status ) {
+                    statusInt = 1;
+                }
 
-        var exec = execStatus();
+                ret.ret    = status;
+                ret.status = statusInt;
+                ret.msg    = "No change made. Lock was already '" + status + "'.";
+            }
 
-   }).finally(function(){
-      console.log('Finally');
-  });
+            lock.disconnect();
+            res.json( ret );
+        } );
+    }
 
-});
+    // Perform requested action
+    lock.connect().then( actionFunction ).catch( function( err ) {
+        console.error( err );
+        lock.disconnect();
+        res.sendStatus( 500 );
+    } );
+} );
 
+// Parse lock configurations
+Object.keys( config ).forEach( function( lockName ) {
+    var lockConfig = config[ lockName ];
 
-app.get('/api/lock/:lock_name', function(req, res) {
-  var lock = app.get('lock' + req.params.lock_name);
-  if (!lock) {
-    res.sendStatus(503);
-    return;
-  }
-
-
- var execLock = async(function() {
-     var status = await(lock.status());
-
-     if(status == 'unlocked')
-     {
-
-          var cmd = await(lock.forceLock());
-          ret['msg'] = 'Command completed. Disconnected.';
-          ret['status'] = 0;
-          ret['ret'] = 'locked';
-          console.log('Released lock request');
-
-     }
-     else
-     {
-         ret['status'] = 1;
-         ret['msg'] = 'Lock is already locked';
-
-     }
-
-    res.json(ret);
-    lock.disconnect();
-});
-
-  lock.connect().then(function(){
-
-        var status = execLock();
-
-   }).finally(function(){
-      console.log('Finally');
-   });
-
-});
-
-
-app.get('/api/status/:lock_name', function(req, res){
-   var lock = app.get('lock' + req.params.lock_name);
-   if(!lock) {
-      res.sendStatus(503);
-      return;
-   }
-
-   var execStatus = async(function() {
-     var status = await(lock.status());
-      ret['ret'] = status;
-      ret['status'] = 0;
-      ret['msg'] = 'Command completed.';
-
-     console.log('Disconnecting');
-     lock.disconnect();
-
-     console.log('Returning');
-     res.json(ret);
-   });
-
-
-   lock.connect().then(function() {
-      var status = execStatus();
-
-   }).finally(function() {
-      console.log('Finally');
-   });
-
-
-});
-
-Object.keys(config).forEach( function( lockName ) {
-    var lockConfig = config[lockName];
-
-    augustctl.scan(lockConfig.lockUuid).then(function (peripheral) {
+    augustctl.scan( lockConfig.lockUuid ).then( function( peripheral ) {
         var lock = new augustctl.Lock(
             peripheral,
             lockConfig.offlineKey,
             lockConfig.offlineKeyOffset
         );
+
         app.set('lock' + lockName, lock);
-    });
-});
-var server = app.listen(port, address, function() {
-  console.log('Listening at %j', server.address());
-});
+    } );
+} );
+
+// Start Express server
+var server = app.listen( port, address, function() {
+    console.log( 'Listening at %j', server.address() );
+} );
