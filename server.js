@@ -83,7 +83,7 @@ function disconnectAndClear( lockName ) {
  */
 
 // Endpoint to check lock status
-app.get( '/api/status/:lock_name', cache( '15 seconds' ), function( req, res ) {
+app.get( '/api/status/:lock_name', cache( '5 seconds' ), function( req, res ) {
     // Parse allowed request arguments
     var lock = getLockInstance( req.params.lock_name );
     if ( ! lock ) {
@@ -111,7 +111,7 @@ app.get( '/api/status/:lock_name', cache( '15 seconds' ), function( req, res ) {
 } );
 
 // Endpoint to change lock state
-app.get( '/api/:lock_action(lock|unlock)/:lock_name', cache( '5 seconds' ), function( req, res ) {
+app.get( '/api/:lock_action(lock|unlock)/:lock_name', cache( '3 seconds' ), function( req, res ) {
     // Parse allowed request arguments
     var action = req.params.lock_action,
         allowedActions = [ 'unlock', 'lock' ];
