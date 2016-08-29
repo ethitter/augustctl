@@ -33,31 +33,16 @@ var ret = {
     'msg':    ''
 };
 
-// Register a given lock if it can be located
-function registerLock( lockName, lockConfig ) {
-    augustctl.scan( lockConfig.lockUuid ).then( function( peripheral ) {
-        var lock = new augustctl.Lock(
-            peripheral,
-            lockConfig.offlineKey,
-            lockConfig.offlineKeyOffset
-        );
-
-        app.set('lock' + lockName, lock);
-    } );
-}
-
 // Get lock instance
 function getLockInstance( lockName, res ) {
     var lock = app.get( 'lock' + lockName );
+
     if ( lock ) {
         return lock;
+    } else if ( 'object' === typeof config[ lockName ] ) {
+        // If a valid lock exists but isn't registered, kill the process because its state is unpredictable
+        process.exit();
     } else {
-        if ( 'object' === typeof config[ lockName ] ) {
-            console.log( 'Loading MISSING config for lock "%s" (%s)', lockName, config[ lockName ].lockUuid );
-            registerLock( lockName, config[ lockName ] );
-        }
-
-        clearCaches( lockName );
         res.sendStatus( 400 );
         return false;
     }
@@ -189,7 +174,15 @@ Object.keys( config ).forEach( function( lockName ) {
 
     console.log( 'Loading config for lock "%s" (%s)', lockName, lockConfig.lockUuid );
 
-    registerLock( lockName, lockConfig );
+    augustctl.scan( lockConfig.lockUuid ).then( function( peripheral ) {
+        var lock = new augustctl.Lock(
+            peripheral,
+            lockConfig.offlineKey,
+            lockConfig.offlineKeyOffset
+        );
+
+        app.set( 'lock' + lockName, lock );
+    } );
 } );
 
 // Start Express server
