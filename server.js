@@ -34,7 +34,7 @@ var ret = {
     };
 
 // Get lock instance
-function getLockInstance( lockName ) {
+function getLockInstance( lockName, res ) {
     var lock = app.get( 'lock' + lockName );
     if ( lock ) {
         return lock;
@@ -68,8 +68,8 @@ function clearCaches( lockName ) {
 }
 
 // Reset lock connection
-function disconnectAndClear( lockName ) {
-    var lock = getLockInstance( lockName );
+function disconnectAndClear( lockName, res ) {
+    var lock = getLockInstance( lockName, res );
     if ( ! lock ) {
         return;
     }
@@ -85,7 +85,7 @@ function disconnectAndClear( lockName ) {
 // Endpoint to check lock status
 app.get( '/api/status/:lock_name', cache( '5 seconds' ), function( req, res ) {
     // Parse allowed request arguments
-    var lock = getLockInstance( req.params.lock_name );
+    var lock = getLockInstance( req.params.lock_name, res );
     if ( ! lock ) {
         return;
     }
@@ -105,7 +105,7 @@ app.get( '/api/status/:lock_name', cache( '5 seconds' ), function( req, res ) {
     // Perform requested action
     lock.connect().then( actionFunction ).catch( function( err ) {
         console.error( err );
-        disconnectAndClear( req.params.lock_name );
+        disconnectAndClear( req.params.lock_name, res );
         res.sendStatus( 500 );
     } );
 } );
@@ -121,7 +121,7 @@ app.get( '/api/:lock_action(lock|unlock)/:lock_name', cache( '3 seconds' ), func
     }
 
     var lockName = req.params.lock_name,
-        lock = getLockInstance( lockName );
+        lock = getLockInstance( lockName, res );
     if ( ! lock ) {
         return;
     }
@@ -148,14 +148,14 @@ app.get( '/api/:lock_action(lock|unlock)/:lock_name', cache( '3 seconds' ), func
             ret.msg    = "No change made. Lock was already '" + status + "'.";
         }
 
-        disconnectAndClear( lockName );
+        disconnectAndClear( lockName, res );
         res.json( ret );
     } );
 
     // Perform requested action
     lock.connect().then( actionFunction ).catch( function( err ) {
         console.error( err );
-        disconnectAndClear( lockName );
+        disconnectAndClear( lockName, res );
         res.sendStatus( 500 );
     } );
 } );
@@ -163,12 +163,12 @@ app.get( '/api/:lock_action(lock|unlock)/:lock_name', cache( '3 seconds' ), func
 // Endpoint to disconnect a lock's BLE connections
 app.get( '/api/disconnect/:lock_name', function( req, res ) {
     // Parse allowed request arguments
-    var lock = getLockInstance( req.params.lock_name );
+    var lock = getLockInstance( req.params.lock_name, res );
     if ( ! lock ) {
         return;
     }
 
-    disconnectAndClear( req.params.lock_name );
+    disconnectAndClear( req.params.lock_name, res );
     res.sendStatus( 204 );
 } );
 
@@ -179,6 +179,8 @@ app.get( '/api/disconnect/:lock_name', function( req, res ) {
 // Parse lock configurations
 Object.keys( config ).forEach( function( lockName ) {
     var lockConfig = config[ lockName ];
+
+    console.log( 'Loading config for lock %s', lockConfig.lockUuid );
 
     augustctl.scan( lockConfig.lockUuid ).then( function( peripheral ) {
         var lock = new augustctl.Lock(
