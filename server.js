@@ -26,12 +26,25 @@ app.use( morgan( DEBUG ? 'dev' : 'combined' ) );
  * UTILITIES
  */
 
-    // Default return arguments
+// Default return arguments
 var ret = {
-        'status': -1,
-        'ret':    '',
-        'msg':    ''
-    };
+    'status': -1,
+    'ret':    '',
+    'msg':    ''
+};
+
+// Register a given lock if it can be located
+function registerLock( lockName, lockConfig ) {
+    augustctl.scan( lockConfig.lockUuid ).then( function( peripheral ) {
+        var lock = new augustctl.Lock(
+            peripheral,
+            lockConfig.offlineKey,
+            lockConfig.offlineKeyOffset
+        );
+
+        app.set('lock' + lockName, lock);
+    } );
+}
 
 // Get lock instance
 function getLockInstance( lockName, res ) {
@@ -39,6 +52,11 @@ function getLockInstance( lockName, res ) {
     if ( lock ) {
         return lock;
     } else {
+        if ( 'object' === typeof config[ lockName ] ) {
+            console.log( 'Loading MISSING config for lock "%s" (%s)', lockName, config[ lockName ].lockUuid );
+            registerLock( lockName, config[ lockName ] );
+        }
+
         clearCaches( lockName );
         res.sendStatus( 400 );
         return false;
@@ -65,17 +83,6 @@ function clearCaches( lockName ) {
     apicache.clear( '/api/unlock/' + lockName );
 
     return true;
-}
-
-// Reset lock connection
-function disconnectAndClear( lockName, res ) {
-    var lock = getLockInstance( lockName, res );
-    if ( ! lock ) {
-        return;
-    }
-
-    lock.disconnect();
-    clearCaches( lockName );
 }
 
 /**
@@ -105,8 +112,7 @@ app.get( '/api/status/:lock_name', cache( '5 seconds' ), function( req, res ) {
     // Perform requested action
     lock.connect().then( actionFunction ).catch( function( err ) {
         console.error( err );
-        disconnectAndClear( req.params.lock_name, res );
-        res.sendStatus( 500 );
+        res.sendStatus( 503 );
     } );
 } );
 
@@ -148,15 +154,15 @@ app.get( '/api/:lock_action(lock|unlock)/:lock_name', cache( '3 seconds' ), func
             ret.msg    = "No change made. Lock was already '" + status + "'.";
         }
 
-        disconnectAndClear( lockName, res );
+        lock.disconnect();
+        clearCaches( lockName );
         res.json( ret );
     } );
 
     // Perform requested action
     lock.connect().then( actionFunction ).catch( function( err ) {
         console.error( err );
-        disconnectAndClear( lockName, res );
-        res.sendStatus( 500 );
+        res.sendStatus( 503 );
     } );
 } );
 
@@ -168,7 +174,8 @@ app.get( '/api/disconnect/:lock_name', function( req, res ) {
         return;
     }
 
-    disconnectAndClear( req.params.lock_name, res );
+    lock.disconnect();
+    clearCaches( req.params.lock_name );
     res.sendStatus( 204 );
 } );
 
@@ -180,17 +187,9 @@ app.get( '/api/disconnect/:lock_name', function( req, res ) {
 Object.keys( config ).forEach( function( lockName ) {
     var lockConfig = config[ lockName ];
 
-    console.log( 'Loading config for lock %s', lockConfig.lockUuid );
+    console.log( 'Loading config for lock "%s" (%s)', lockName, lockConfig.lockUuid );
 
-    augustctl.scan( lockConfig.lockUuid ).then( function( peripheral ) {
-        var lock = new augustctl.Lock(
-            peripheral,
-            lockConfig.offlineKey,
-            lockConfig.offlineKeyOffset
-        );
-
-        app.set('lock' + lockName, lock);
-    } );
+    registerLock( lockName, lockConfig );
 } );
 
 // Start Express server
