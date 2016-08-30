@@ -11,6 +11,7 @@ var await     = require( 'asyncawait/await' );
 var async     = require( 'asyncawait/async' );
 var apicache  = require( 'apicache' ).options( { defaultDuration: 15000 } );
 var cache     = apicache.middleware;
+var timeout   = require( 'connect-timeout' );
 
 var config       = require( process.env.AUGUSTCTL_CONFIG || './config.json' );
 var serverConfig = require( process.env.AUGUSTCTL_SERVER_CONFIG || './server-config.json' );
@@ -70,12 +71,21 @@ function clearCaches( lockName ) {
     return true;
 }
 
+// Middleware to handle timeout status checks
+function haltOnTimedout( req, res, next ) {
+    if ( req.timedout ) {
+        lock.disconnect();
+    } else {
+        next();
+    }
+}
+
 /**
  * ROUTES
  */
 
 // Endpoint to check lock status
-app.get( '/api/status/:lock_name', cache( '5 seconds' ), function( req, res ) {
+app.get( '/api/status/:lock_name', timeout( '5 seconds' ), cache( '5 seconds' ), haltOnTimedout, function( req, res ) {
     // Parse allowed request arguments
     var lock = getLockInstance( req.params.lock_name, res );
     if ( ! lock ) {
@@ -102,7 +112,7 @@ app.get( '/api/status/:lock_name', cache( '5 seconds' ), function( req, res ) {
 } );
 
 // Endpoint to change lock state
-app.get( '/api/:lock_action(lock|unlock)/:lock_name', cache( '3 seconds' ), function( req, res ) {
+app.get( '/api/:lock_action(lock|unlock)/:lock_name', timeout( '5 seconds' ), cache( '3 seconds' ), haltOnTimedout, function( req, res ) {
     // Parse allowed request arguments
     var action = req.params.lock_action,
         allowedActions = [ 'unlock', 'lock' ];
