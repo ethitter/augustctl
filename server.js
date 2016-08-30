@@ -12,6 +12,7 @@ var async     = require( 'asyncawait/async' );
 var apicache  = require( 'apicache' ).options( { defaultDuration: 15000 } );
 var cache     = apicache.middleware;
 var timeout   = require( 'connect-timeout' );
+var request   = require( 'request' );
 
 var config       = require( process.env.AUGUSTCTL_CONFIG || './config.json' );
 var serverConfig = require( process.env.AUGUSTCTL_SERVER_CONFIG || './server-config.json' );
@@ -74,7 +75,7 @@ function clearCaches( lockName ) {
 // Middleware to handle timeout status checks
 function haltOnTimedout( req, res, next ) {
     if ( req.timedout ) {
-        lock.disconnect();
+        request( 'http://' + address + ':' + port + '/api/disconnect/' + req.params.lock_name );
     } else {
         next();
     }
@@ -86,8 +87,10 @@ function haltOnTimedout( req, res, next ) {
 
 // Endpoint to check lock status
 app.get( '/api/status/:lock_name', timeout( '5 seconds' ), cache( '5 seconds' ), haltOnTimedout, function( req, res ) {
+    var lockName = req.params.lock_name;
+
     // Parse allowed request arguments
-    var lock = getLockInstance( req.params.lock_name, res );
+    var lock = getLockInstance( lockName, res );
     if ( ! lock ) {
         return;
     }
@@ -107,6 +110,15 @@ app.get( '/api/status/:lock_name', timeout( '5 seconds' ), cache( '5 seconds' ),
     // Perform requested action
     lock.connect().then( actionFunction ).catch( function( err ) {
         console.error( err );
+
+        try {
+            request( 'http://' + address + ':' + port + '/api/disconnect/' + lockName, function() {
+                request( 'http://' + address + ':' + port + '/api/status/' + lockName );
+            } );
+        } catch ( e ) {
+            // We don't care about request results
+        }
+
         res.sendStatus( 503 );
     } );
 } );
@@ -157,6 +169,15 @@ app.get( '/api/:lock_action(lock|unlock)/:lock_name', timeout( '5 seconds' ), ca
     // Perform requested action
     lock.connect().then( actionFunction ).catch( function( err ) {
         console.error( err );
+
+        try {
+            request( 'http://' + address + ':' + port + '/api/disconnect/' + lockName, function() {
+                request( 'http://' + address + ':' + port + '/api/status/' + lockName );
+            } );
+        } catch ( e ) {
+            // We don't care about request results
+        }
+
         res.sendStatus( 503 );
     } );
 } );
