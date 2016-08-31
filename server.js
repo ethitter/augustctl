@@ -88,7 +88,7 @@ function statusStringtoInt( status ) {
  */
 
 // Endpoint to check lock status
-app.get( '/api/status/:lock_name', cache( '5 seconds' ), function( req, res, next ) {
+app.get( '/api/status/:lock_name', cache( '10 seconds' ), function( req, res, next ) {
     var lockName = req.params.lock_name;
 
     // Parse allowed request arguments
@@ -192,12 +192,6 @@ app.get( '/api/disconnect/:lock_name', function( req, res, next ) {
     var lock = getLockInstance( req.params.lock_name, res );
     if ( ! lock ) {
         res.sendStatus( 400 );
-        return;
-    }
-
-    // Check if lock is already connected, and bail if it's already disconnected
-    if ( ! lock.isConnected() ) {
-        res.sendStatus( 503 );
         return;
     }
 
