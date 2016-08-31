@@ -13,6 +13,10 @@ var apicache  = require( 'apicache' ).options( { defaultDuration: 15000 } );
 var cache     = apicache.middleware;
 var request   = require( 'request' );
 
+/**
+ * CONFIGURATION
+ */
+
 var config       = require( process.env.AUGUSTCTL_CONFIG || './config.json' );
 var serverConfig = require( process.env.AUGUSTCTL_SERVER_CONFIG || './server-config.json' );
 
@@ -22,6 +26,23 @@ var port    = serverConfig.port || 3000;
 
 var app = express();
 app.use( morgan( DEBUG ? 'dev' : 'combined' ) );
+
+// Parse lock configurations
+Object.keys( config ).forEach( function( lockName ) {
+    var lockConfig = config[ lockName ];
+
+    console.log( 'Loading config for lock "%s" (%s)', lockName, lockConfig.lockUuid );
+
+    augustctl.scan( lockConfig.lockUuid ).then( function( peripheral ) {
+        var lock = new augustctl.Lock(
+            peripheral,
+            lockConfig.offlineKey,
+            lockConfig.offlineKeyOffset
+        );
+
+        app.set( 'lock' + lockName, lock );
+    } );
+} );
 
 /**
  * UTILITIES
@@ -188,23 +209,6 @@ app.get( '/api/disconnect/:lock_name', function( req, res, next ) {
 /**
  * SERVER SETUP
  */
-
-// Parse lock configurations
-Object.keys( config ).forEach( function( lockName ) {
-    var lockConfig = config[ lockName ];
-
-    console.log( 'Loading config for lock "%s" (%s)', lockName, lockConfig.lockUuid );
-
-    augustctl.scan( lockConfig.lockUuid ).then( function( peripheral ) {
-        var lock = new augustctl.Lock(
-            peripheral,
-            lockConfig.offlineKey,
-            lockConfig.offlineKeyOffset
-        );
-
-        app.set( 'lock' + lockName, lock );
-    } );
-} );
 
 // Start Express server
 var server = app.listen( port, address, function() {
