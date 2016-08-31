@@ -188,11 +188,6 @@ app.get( '/api/:lock_action(lock|unlock)/:lock_name', function( req, res, next )
     lock.connect().then( actionFunction ).catch( function( err ) {
         console.error( err );
         lock.disconnect();
-
-        try {
-            request( 'http://' + address + ':' + port + '/api/' + action + '/' + lockName );
-        } catch ( e ) {}
-
         res.sendStatus( 500 );
     } );
 } );
