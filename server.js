@@ -41,6 +41,7 @@ Object.keys( config ).forEach( function( lockName ) {
         );
 
         app.set( 'lock' + lockName, lock );
+        app.set( 'lock_status:' + lockName, false );
     } );
 } );
 
@@ -100,7 +101,14 @@ app.get( '/api/status/:lock_name', cache( '10 seconds' ), function( req, res, ne
 
     // Check if lock is already connected, and bail if it is since two devices can't connect at once
     if ( lock.isConnected() ) {
-        res.sendStatus( 503 );
+        var lastStatus = app.get( 'lock_status:' + lockName );
+
+        if ( 'object' === typeof lastStatus ) {
+            res.json( lastStatus );
+        } else {
+            res.sendStatus( 503 );
+        }
+
         return;
     }
 
@@ -111,6 +119,8 @@ app.get( '/api/status/:lock_name', cache( '10 seconds' ), function( req, res, ne
         ret.ret    = status;
         ret.status = statusStringtoInt( status );
         ret.msg    = "Status checked successfully.";
+
+        app.set( 'lock_status:' + lockName, ret );
 
         lock.disconnect();
         res.json( ret );
@@ -169,6 +179,7 @@ app.get( '/api/:lock_action(lock|unlock)/:lock_name', function( req, res, next )
         }
 
         lock.disconnect();
+        app.set( 'lock_status:' + lockName, ret );
         apicache.clear( '/api/status/' + lockName );
         res.json( ret );
     } );
