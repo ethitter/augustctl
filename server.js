@@ -11,7 +11,6 @@ var await     = require( 'asyncawait/await' );
 var async     = require( 'asyncawait/async' );
 var apicache  = require( 'apicache' ).options( { defaultDuration: 15000 } );
 var cache     = apicache.middleware;
-var timeout   = require( 'connect-timeout' );
 var request   = require( 'request' );
 
 var config       = require( process.env.AUGUSTCTL_CONFIG || './config.json' );
@@ -63,35 +62,24 @@ function statusStringtoInt( status ) {
     return statusInt;
 }
 
-// Clear cached routes
-function clearCaches( lockName ) {
-    apicache.clear( '/api/status/' + lockName );
-    apicache.clear( '/api/lock/' + lockName );
-    apicache.clear( '/api/unlock/' + lockName );
-
-    return true;
-}
-
-// Middleware to handle timeout status checks
-function haltOnTimedout( req, res, next ) {
-    if ( req.timedout ) {
-        request( 'http://' + address + ':' + port + '/api/disconnect/' + req.params.lock_name );
-    } else {
-        next();
-    }
-}
-
 /**
  * ROUTES
  */
 
 // Endpoint to check lock status
-app.get( '/api/status/:lock_name', timeout( '5 seconds' ), cache( '5 seconds' ), haltOnTimedout, function( req, res ) {
+app.get( '/api/status/:lock_name', cache( '5 seconds' ), function( req, res, next ) {
     var lockName = req.params.lock_name;
 
     // Parse allowed request arguments
     var lock = getLockInstance( lockName, res );
     if ( ! lock ) {
+        res.sendStatus( 400 );
+        return;
+    }
+
+    // Check if lock is already connected, and bail if it is since two devices can't connect at once
+    if ( lock.isConnected() ) {
+        res.sendStatus( 503 );
         return;
     }
 
@@ -110,21 +98,13 @@ app.get( '/api/status/:lock_name', timeout( '5 seconds' ), cache( '5 seconds' ),
     // Perform requested action
     lock.connect().then( actionFunction ).catch( function( err ) {
         console.error( err );
-
-        try {
-            request( 'http://' + address + ':' + port + '/api/disconnect/' + lockName, function() {
-                request( 'http://' + address + ':' + port + '/api/status/' + lockName );
-            } );
-        } catch ( e ) {
-            // We don't care about request results
-        }
-
-        res.sendStatus( 503 );
+        lock.disconnect();
+        res.sendStatus( 500 );
     } );
 } );
 
 // Endpoint to change lock state
-app.get( '/api/:lock_action(lock|unlock)/:lock_name', timeout( '5 seconds' ), cache( '3 seconds' ), haltOnTimedout, function( req, res ) {
+app.get( '/api/:lock_action(lock|unlock)/:lock_name', function( req, res, next ) {
     // Parse allowed request arguments
     var action = req.params.lock_action,
         allowedActions = [ 'unlock', 'lock' ];
@@ -136,7 +116,13 @@ app.get( '/api/:lock_action(lock|unlock)/:lock_name', timeout( '5 seconds' ), ca
     var lockName = req.params.lock_name,
         lock = getLockInstance( lockName, res );
     if ( ! lock ) {
+        res.sendStatus( 400 );
         return;
+    }
+
+    // Check if lock is already connected, and disconnect so we can force the action
+    if ( lock.isConnected() ) {
+        lock.disconnect();
     }
 
     // Suspendable functions to interact with lock based on requested action
@@ -162,36 +148,40 @@ app.get( '/api/:lock_action(lock|unlock)/:lock_name', timeout( '5 seconds' ), ca
         }
 
         lock.disconnect();
-        clearCaches( lockName );
+        apicache.clear( '/api/status/' + lockName );
         res.json( ret );
     } );
 
     // Perform requested action
     lock.connect().then( actionFunction ).catch( function( err ) {
         console.error( err );
+        lock.disconnect();
 
         try {
-            request( 'http://' + address + ':' + port + '/api/disconnect/' + lockName, function() {
-                request( 'http://' + address + ':' + port + '/api/status/' + lockName );
-            } );
-        } catch ( e ) {
-            // We don't care about request results
-        }
+            request( 'http://' + address + ':' + port + '/api/' + action + '/' + lockName );
+        } catch ( e ) {}
 
-        res.sendStatus( 503 );
+        res.sendStatus( 500 );
     } );
 } );
 
 // Endpoint to disconnect a lock's BLE connections
-app.get( '/api/disconnect/:lock_name', function( req, res ) {
+app.get( '/api/disconnect/:lock_name', function( req, res, next ) {
     // Parse allowed request arguments
     var lock = getLockInstance( req.params.lock_name, res );
     if ( ! lock ) {
+        res.sendStatus( 400 );
+        return;
+    }
+
+    // Check if lock is already connected, and bail if it's already disconnected
+    if ( ! lock.isConnected() ) {
+        res.sendStatus( 503 );
         return;
     }
 
     lock.disconnect();
-    clearCaches( req.params.lock_name );
+    apicache.clear( '/api/status/' + req.params.lock_name );
     res.sendStatus( 204 );
 } );
 
