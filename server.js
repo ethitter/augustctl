@@ -11,6 +11,7 @@ var await     = require( 'asyncawait/await' );
 var async     = require( 'asyncawait/async' );
 var apicache  = require( 'apicache' ).options( { defaultDuration: 15000 } );
 var cache     = apicache.middleware;
+var timeout   = require( 'connect-timeout' );
 var request   = require( 'request' );
 
 /**
@@ -26,6 +27,8 @@ var port    = serverConfig.port || 3000;
 
 var app = express();
 app.use( morgan( DEBUG ? 'dev' : 'combined' ) );
+app.use( timeout( '10s' ) );
+app.use( haltOnTimeout );
 
 // Parse lock configurations
 Object.keys( config ).forEach( function( lockName ) {
@@ -82,6 +85,13 @@ function statusStringtoInt( status ) {
     }
 
     return statusInt;
+}
+
+// Timeout callback
+function haltOnTimeout( req, res, next ) {
+    if ( ! req.timedout ) {
+        next();
+    }
 }
 
 /**
