@@ -17,7 +17,7 @@
   "dependencies": {
     "apicache": "*",
     "asyncawait": "^0.7.4",
-    "bluebird": "^2.9.34",
+    "bluebird": "^3.7.2",
     "connect-timeout": "*",
     "debug": "^2.2.0",
     "express": "^4.13.3",
